@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/bloombits"
@@ -160,6 +161,10 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.Log, error) {
 		return nil, err
 	}
 
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*15)
+	defer cancel()
+	ctx = ctxWithTimeout
+
 	logChan, errChan := f.rangeLogsAsync(ctx)
 	var logs []*types.Log
 	for {
@@ -272,6 +277,10 @@ func (f *Filter) indexedLogs(ctx context.Context, end uint64, logChan chan *type
 // iteration and bloom matching.
 func (f *Filter) unindexedLogs(ctx context.Context, end uint64, logChan chan *types.Log) error {
 	for ; f.begin <= int64(end); f.begin++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		header, err := f.sys.backend.HeaderByNumber(ctx, rpc.BlockNumber(f.begin))
 		if header == nil || err != nil {
 			return err
